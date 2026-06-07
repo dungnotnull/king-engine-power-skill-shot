@@ -1,0 +1,180 @@
+{
+  "skill_name": "king-engine-power-skill-shot",
+  "version": "1.0.0",
+  "description": "Phase detection test cases. Each case tests whether the detector correctly identifies BATTLE_START, VICTORY, or NONE from agent output text.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "clear-implementation-start",
+      "category": "BATTLE_START",
+      "prompt": "Agent output: \"I've analyzed all the requirements. The architecture is clear. Now I'll implement the authentication module starting with the JWT handler.\"",
+      "expected_event": "BATTLE_START",
+      "expected_min_score": 8,
+      "input_text": "I've analyzed all the requirements. The architecture is clear. Now I'll implement the authentication module starting with the JWT handler.",
+      "assertions": [
+        {"id": "e1-1", "text": "King Engine fires", "check": "event == 'BATTLE_START'"},
+        {"id": "e1-2", "text": "Score is high confidence", "check": "king_engine_score >= 8"},
+        {"id": "e1-3", "text": "Matched 'implement' signal", "check": "'implement' in str(king_engine_signals)"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "create-file-after-planning",
+      "category": "BATTLE_START",
+      "prompt": "Agent calls create_file tool with substantial code content after writing a plan block.",
+      "expected_event": "BATTLE_START",
+      "expected_min_score": 9,
+      "input_text": "Here's my plan: 1. Create the router 2. Add middleware 3. Connect to database. Let me create the file now.",
+      "tool_event": "pre_tool",
+      "tool_name": "create_file",
+      "tool_input": {"path": "src/router.py", "content": "from flask import Flask\napp = Flask(__name__)\n\n@app.route('/api/users')\ndef get_users():\n    return jsonify(users)"},
+      "assertions": [
+        {"id": "e2-1", "text": "create_file tool triggers King Engine", "check": "event == 'BATTLE_START'"},
+        {"id": "e2-2", "text": "Tool score is high", "check": "tool_score >= 9"}
+      ]
+    },
+    {
+      "id": 3,
+      "name": "bash-build-command",
+      "category": "BATTLE_START",
+      "prompt": "Agent runs npm run build or pytest after planning phase.",
+      "expected_event": "BATTLE_START",
+      "input_text": "The implementation is complete. Let me run the tests.",
+      "tool_event": "pre_tool",
+      "tool_name": "bash_tool",
+      "tool_input": {"command": "npm run build && npm test"},
+      "assertions": [
+        {"id": "e3-1", "text": "npm command triggers King Engine", "check": "event == 'BATTLE_START'"},
+        {"id": "e3-2", "text": "bash impl command detected", "check": "tool_score >= 9"}
+      ]
+    },
+    {
+      "id": 4,
+      "name": "clear-task-completion",
+      "category": "VICTORY",
+      "prompt": "Agent output: \"All tests are passing and the feature is ready. The implementation is complete.\"",
+      "expected_event": "VICTORY",
+      "expected_min_score": 8,
+      "input_text": "All tests are passing and the feature is ready. The implementation is complete. The authentication module has been successfully integrated.",
+      "precondition_state": "IMPLEMENTING",
+      "assertions": [
+        {"id": "e4-1", "text": "Victory fires on clear completion", "check": "event == 'VICTORY'"},
+        {"id": "e4-2", "text": "Victory score is high", "check": "victory_score >= 8"}
+      ]
+    },
+    {
+      "id": 5,
+      "name": "all-tests-passed-output",
+      "category": "VICTORY",
+      "prompt": "PostToolUse hook receives test runner output showing all tests passed.",
+      "expected_event": "VICTORY",
+      "tool_event": "post_tool",
+      "tool_name": "bash_tool",
+      "tool_output": {"stdout": "✓ 42 tests passed\n✓ Build successful\n✓ Coverage: 94%\nDone in 3.2s"},
+      "precondition_state": "IMPLEMENTING",
+      "assertions": [
+        {"id": "e5-1", "text": "Victory fires on test success output", "check": "event == 'VICTORY'"},
+        {"id": "e5-2", "text": "Output signals detected", "check": "tool_score >= 8"}
+      ]
+    },
+    {
+      "id": 6,
+      "name": "stop-hook-after-implementation",
+      "category": "VICTORY",
+      "prompt": "Stop hook fires after agent has been in IMPLEMENTING state.",
+      "expected_event": "VICTORY",
+      "tool_event": "stop",
+      "precondition_state": "IMPLEMENTING",
+      "assertions": [
+        {"id": "e6-1", "text": "Stop hook in IMPLEMENTING state fires Victory", "check": "event == 'VICTORY'"}
+      ]
+    },
+    {
+      "id": 7,
+      "name": "false-positive-subtask-done",
+      "category": "NONE",
+      "prompt": "Agent completes a sub-step but continues: \"I've finished the login function. Now let me work on the logout endpoint.\"",
+      "expected_event": "NONE",
+      "input_text": "I've finished the login function. Now let me work on the logout endpoint and session management.",
+      "precondition_state": "IMPLEMENTING",
+      "assertions": [
+        {"id": "e7-1", "text": "No Victory fires for sub-step completion", "check": "event == 'NONE'"},
+        {"id": "e7-2", "text": "Anti-signals prevent false positive", "check": "victory_score < 8"}
+      ]
+    },
+    {
+      "id": 8,
+      "name": "false-positive-future-tense",
+      "category": "NONE",
+      "prompt": "Agent says \"I'll now complete the feature\" — future tense, not done yet.",
+      "expected_event": "NONE",
+      "input_text": "I'll now complete the feature by adding the remaining middleware and then running the full test suite.",
+      "precondition_state": "IMPLEMENTING",
+      "assertions": [
+        {"id": "e8-1", "text": "Future-tense 'complete' does not fire Victory", "check": "event == 'NONE'"},
+        {"id": "e8-2", "text": "Anti-signal cancels false completion", "check": "victory_score < 8"}
+      ]
+    },
+    {
+      "id": 9,
+      "name": "false-positive-planning-phase-only",
+      "category": "NONE",
+      "prompt": "Agent is only planning, not yet implementing: \"I'll approach this by first analyzing the existing codebase.\"",
+      "expected_event": "NONE",
+      "input_text": "I'll approach this by first analyzing the existing codebase to understand the structure, then I'll plan the implementation.",
+      "precondition_state": "IDLE",
+      "assertions": [
+        {"id": "e9-1", "text": "Pure planning does not trigger King Engine", "check": "event == 'NONE'"},
+        {"id": "e9-2", "text": "King Engine score below threshold", "check": "king_engine_score < 8"}
+      ]
+    },
+    {
+      "id": 10,
+      "name": "false-positive-bash-read-command",
+      "category": "NONE",
+      "prompt": "Agent runs cat/ls to read files — should not trigger King Engine.",
+      "expected_event": "NONE",
+      "tool_event": "pre_tool",
+      "tool_name": "bash_tool",
+      "tool_input": {"command": "cat src/config.py && ls -la src/"},
+      "precondition_state": "PLANNING",
+      "assertions": [
+        {"id": "e10-1", "text": "cat/ls does not trigger King Engine", "check": "event == 'NONE'"},
+        {"id": "e10-2", "text": "Read command score is low", "check": "tool_score <= 4"}
+      ]
+    },
+    {
+      "id": 11,
+      "name": "false-positive-code-comment",
+      "category": "NONE",
+      "prompt": "Agent output contains implementation words only in code comments, not in prose.",
+      "expected_event": "NONE",
+      "input_text": "```python\n# Implementation complete - add tests next\n# Now I'll implement error handling\ndef process():\n    pass\n```\nLet me review the code above.",
+      "precondition_state": "IDLE",
+      "assertions": [
+        {"id": "e11-1", "text": "Code comment trigger words do not fire King Engine", "check": "event == 'NONE'"},
+        {"id": "e11-2", "text": "Comment lines are excluded from scoring", "check": "king_engine_score < 8"}
+      ]
+    },
+    {
+      "id": 12,
+      "name": "cooldown-prevents-double-fire",
+      "category": "NONE",
+      "prompt": "King Engine fires, then immediately fires again within cooldown window.",
+      "expected_event": "NONE",
+      "input_text": "Now I'll implement the second module.",
+      "precondition_state": "IMPLEMENTING",
+      "precondition_last_battle_seconds_ago": 30,
+      "assertions": [
+        {"id": "e12-1", "text": "Cooldown prevents double King Engine fire", "check": "event == 'NONE'"},
+        {"id": "e12-2", "text": "Cooldown still active", "check": "cooldown_remaining > 0"}
+      ]
+    }
+  ],
+  "test_utilities": {
+    "run_single": "python skill/scripts/phase_detector.py --text \"<input_text>\" --pretty",
+    "run_tool_event": "python skill/scripts/phase_detector.py --event pre_tool --tool bash_tool --input '{\"command\":\"npm build\"}' --pretty",
+    "run_all": "python evals/run_evals.py",
+    "reset_state": "python skill/scripts/king_engine.py --reset"
+  }
+}
